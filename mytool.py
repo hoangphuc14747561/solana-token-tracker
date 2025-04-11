@@ -1,6 +1,5 @@
 import requests
 import json
-import os
 import streamlit as st
 import pandas as pd
 
@@ -73,17 +72,15 @@ def fetch_tokens(wallet, api_key):
             })
     return owned_tokens
 
-def save_data(filename, tokens, transactions):
-    with open(filename, "w") as f:
-        json.dump({
-            "tokens": tokens,
-            "transactions": transactions,
-            "last_signature": transactions[0]["signature"] if transactions else None
-        }, f, indent=2)
-
-def load_data(filename):
-    with open(filename, "r") as f:
-        return json.load(f)
+@st.cache_data(show_spinner=False)
+def get_cached_data(wallet, api_key):
+    tokens = fetch_tokens(wallet, api_key)
+    transactions = get_all_new_transactions(wallet, api_key)
+    return {
+        "tokens": tokens,
+        "transactions": transactions,
+        "last_signature": transactions[0]["signature"] if transactions else None
+    }
 
 def get_token_price(mint):
     try:
@@ -97,26 +94,13 @@ def get_token_price(mint):
     except:
         return None
 
-if wallet and (refresh or True):
-    filename = f"{wallet}.json"
+if wallet:
     with st.spinner("📥 Đang kiểm tra dữ liệu ví..."):
-        if not os.path.exists(filename) or refresh:
-            tokens = fetch_tokens(wallet, helius_api_key)
-            transactions = get_all_new_transactions(wallet, helius_api_key)
-            save_data(filename, tokens, transactions)
-        else:
-            data = load_data(filename)
-            tokens = data["tokens"]
-            old_transactions = data.get("transactions", [])
-            last_signature = data.get("last_signature")
-            new_transactions = get_all_new_transactions(wallet, helius_api_key, known_last_signature=last_signature)
-            if new_transactions:
-                transactions = new_transactions + old_transactions
-                save_data(filename, tokens, transactions)
-            else:
-                transactions = old_transactions
+        data = get_cached_data(wallet, helius_api_key)
+        tokens = data["tokens"]
+        transactions = data["transactions"]
 
-    st.success(f"✅ Dữ liệu ví {wallet[:6]}... đã được cập nhật.")
+    st.success(f"✅ Dữ liệu ví {wallet[:6]}... đã được tải.")
     st.markdown("---")
 
     st.subheader("📊 Bảng phân tích lời/lỗ từng token:")
